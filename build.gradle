@@ -1,29 +1,63 @@
-apply plugin: 'java'
-apply plugin: 'maven'
-apply plugin: 'idea'
-apply plugin: 'eclipse'
-
-group = 'com.intellectualsites'
-version = '0.0.1'
-description = """Simple java addOn system"""
-
-compileJava {
-    sourceCompatibility = '1.8'
-    targetCompatibility = '1.8'
-}
-
-subprojects {
-    apply plugin: 'java'
-    tasks.withType(Jar) {
-        destinationDir = file("$rootDir/addons");
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+            jcenter()
+        }
+    }
+    dependencies {
+        classpath 'gradle.plugin.nl.javadude.gradle.plugins:license-gradle-plugin:0.14.0'
+        classpath ("org.junit.platform:junit-platform-gradle-plugin:1.0.1")
     }
 }
 
-repositories {
-    mavenCentral()
-    mavenLocal()
-}
+allprojects {
+    apply plugin: 'com.github.hierynomus.license'
+    apply plugin: 'java'
+    apply plugin: 'maven'
+    apply plugin: 'idea'
+    apply plugin: 'eclipse'
 
-dependencies {
-    compile 'org.projectlombok:lombok:1.16.6'
+    task wrapper(type: Wrapper) {
+        gradleVersion = '4.3.1'
+    }
+
+    group = 'xyz.kvantum'
+    version = '0.0.1'
+    description = """Simple java addOn system"""
+
+    compileJava {
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
+    }
+
+    subprojects {
+        apply plugin: 'java'
+        tasks.withType(Jar) {
+            destinationDir = file("$rootDir/addons");
+        }
+    }
+
+    repositories {
+        mavenCentral()
+        mavenLocal()
+    }
+
+    license {
+        header rootProject.file('HEADER')
+        mapping 'java', 'SLASHSTAR_STYLE'
+        ext.year = 2017
+    }
+
+    dependencies {
+        compile 'org.projectlombok:lombok:1.16.6'
+        testCompile 'org.junit.jupiter:junit-jupiter-api:5.0.1'
+        testCompile(
+                'org.junit.jupiter:junit-jupiter-engine:5.0.1',
+                'org.junit.vintage:junit-vintage-engine:4.12.1',
+                'org.junit.platform:junit-platform-launcher:1.0.1',
+                'org.junit.platform:junit-platform-runner:1.0.1'
+        )
+    }
 }

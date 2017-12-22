@@ -1,1 +1,3 @@
 rootProject.name = 'AddOn'
+include 'AddOnTest'
+
