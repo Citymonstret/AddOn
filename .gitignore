@@ -1,8 +1,6 @@
 # Created by .ignore support plugin (hsz.mobi)
 ### Eclipse template
 
-addons
-
 .metadata
 bin/
 tmp/
@@ -60,7 +58,6 @@ local.properties
 .mtj.tmp/
 
 # Package Files #
-*.jar
 *.war
 *.ear
 
