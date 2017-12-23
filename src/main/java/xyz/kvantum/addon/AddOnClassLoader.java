@@ -31,16 +31,35 @@ final class AddOnClassLoader extends URLClassLoader
 {
 
     private final AddOnManager addOnManager;
-    private final Map<String, Class<?>> classes;
+    private final Map<String, Class<?>> classes = new ConcurrentHashMap<>();
 
     @Getter
     private final AddOn addOn;
     @Getter
     private final File file;
+    @Getter
+    private final String name;
 
     @Getter
     @Setter( AccessLevel.PROTECTED )
     private boolean disabling;
+
+    AddOnClassLoader(@NonNull final AddOnManager addOnManager,
+                     @NonNull final File file,
+                     @NonNull final String name) throws AddOnLoaderException, MalformedURLException
+    {
+        super( new URL[]{ file.toURI().toURL() }, addOnManager.getClass().getClassLoader() );
+
+        this.addOnManager = addOnManager;
+        this.file = file;
+        this.name = name;
+        this.addOn = null; // This is a library
+
+        if ( !file.toPath().getFileName().toString().equalsIgnoreCase( name ) )
+        {
+            throw new AddOnLoaderException( "File name does not match addon name..." );
+        }
+    }
 
     AddOnClassLoader(@NonNull final AddOnManager addOnManager,
                      @NonNull final File file,
@@ -50,7 +69,6 @@ final class AddOnClassLoader extends URLClassLoader
         super( new URL[]{ file.toURI().toURL() }, addOnManager.getClass().getClassLoader() );
 
         this.addOnManager = addOnManager;
-        this.classes = new ConcurrentHashMap<>();
         this.file = file;
 
         Class<?> mainClass;
@@ -75,6 +93,7 @@ final class AddOnClassLoader extends URLClassLoader
             this.addOn = addOnMain.newInstance();
             this.addOn.setClassLoader( this );
             this.addOn.setName( name );
+            this.name = name;
         } catch ( final Exception e )
         {
             throw new AddOnLoaderException( "Failed to load main class for " + name, e );

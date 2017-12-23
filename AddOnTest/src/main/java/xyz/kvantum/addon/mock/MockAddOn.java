@@ -16,6 +16,7 @@
 package xyz.kvantum.addon.mock;
 
 import xyz.kvantum.addon.AddOn;
+import xyz.kvantum.nanotube.NanoTube;
 
 public class MockAddOn extends AddOn
 {
@@ -23,6 +24,7 @@ public class MockAddOn extends AddOn
     @Override
     protected void onEnable()
     {
+        final NanoTube<String> nanoTube = NanoTube.construct( null ); // Just shows that we have the reference
         System.out.println( "Enabling " + this );
     }
 

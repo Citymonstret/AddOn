@@ -34,6 +34,7 @@ class AddOnManagerTest
     void fullTest()
     {
         this.addOnManager.load();
+        Assertions.assertEquals( 1, this.addOnManager.getLibraries().size() );
         this.addOnManager.enableAddOns();
         final Optional<AddOn> mockAddon = this.addOnManager.getAddOnInstance( "MockAddon" );
         Assertions.assertNotNull( mockAddon );

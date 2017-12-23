@@ -1,6 +1,11 @@
 group rootProject.group
 version rootProject.version
 
+repositories {
+    maven { url 'https://jitpack.io' }
+}
+
 dependencies {
     compile rootProject
+    compile 'com.github.IntellectualSites:NanoTube:1.0'
 }

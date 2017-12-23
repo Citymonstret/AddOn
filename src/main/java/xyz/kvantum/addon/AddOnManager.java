@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -67,7 +68,12 @@ public final class AddOnManager
         {
             return;
         }
-        Arrays.stream( files ).forEach( this::loadAddon );
+        final List<File> fileList = Arrays.asList( files );
+        //
+        // This makes sure that libraries are loaded before addons
+        //
+        fileList.stream().filter( this::isLibrary ).forEach( this::loadAddon );
+        fileList.stream().filter( file -> !this.isLibrary( file ) ).forEach( this::loadAddon );
     }
 
     private Properties getAddOnProperties(@NonNull final File file) throws AddOnManagerException
@@ -83,7 +89,7 @@ public final class AddOnManager
         final JarEntry desc = jar.getJarEntry( "addon.properties" );
         if ( desc == null )
         {
-            throw new AddOnManagerException( "There is no \"addon.properties\" for addon: " + file.getName() );
+            return null;
         }
         final Properties properties = new Properties();
         try ( final InputStream stream = jar.getInputStream( desc ) )
@@ -109,21 +115,33 @@ public final class AddOnManager
             return this.globalClassMap.get( name );
         }
         Class<?> clazz;
-        for ( final Map.Entry<String, AddOnClassLoader> loader : this.classLoaders.entrySet() )
+        for ( final AddOnClassLoader loader : this.classLoaders.values() )
         {
             try
             {
-                if ( ( clazz = loader.getValue().findClass( name, false ) ) != null )
+                if ( ( clazz = loader.findClass( name, false ) ) != null )
                 {
+                    this.globalClassMap.put( name, clazz );
                     return clazz;
                 }
-            } catch ( final Exception e )
+            }  catch ( final Exception ignored )
             {
-                new AddOnManagerException( "Failed to find class " + name, e )
-                        .printStackTrace();
             }
         }
         return null;
+    }
+
+    /**
+     * Get an immutable copy of the underlying library list
+     *
+     * @return All loaded libraries
+     */
+    @SuppressWarnings( "WeakerAccess" )
+    public Collection<String> getLibraries()
+    {
+        return Collections.unmodifiableList( this.classLoaders.values().stream()
+            .filter( loader -> loader.getAddOn() == null ).map( AddOnClassLoader::getName )
+                .collect( Collectors.toList() ) );
     }
 
     /**
@@ -148,8 +166,9 @@ public final class AddOnManager
     @SuppressWarnings("WeakerAccess")
     public <T extends AddOn> Optional<T> getAddOnInstance(@NonNull final Class<T> clazz)
     {
-        return this.classLoaders.values().stream().map( AddOnClassLoader::getAddOn ).filter( addOn -> addOn.getClass()
-                .equals( clazz ) ).map( clazz::cast ).findAny();
+        return this.classLoaders.values().stream().filter( loader -> loader.getAddOn() != null ).
+                map( AddOnClassLoader::getAddOn ).filter( addOn -> addOn.getClass().equals( clazz ) )
+                .map( clazz::cast ).findAny();
     }
 
     @SuppressWarnings( "WeakerAccess" )
@@ -224,6 +243,19 @@ public final class AddOnManager
         return classLoader.getAddOn();
     }
 
+    private boolean isLibrary(@NonNull final File file)
+    {
+        Properties properties = null;
+        try
+        {
+            properties = getAddOnProperties( file );
+        } catch ( final Exception e )
+        {
+            e.printStackTrace();
+        }
+        return properties == null;
+    }
+
     /**
      * Load an addon from a jar file
      *
@@ -242,39 +274,61 @@ public final class AddOnManager
             e.printStackTrace();
             return null;
         }
-        if ( !properties.containsKey( "main" ) )
+        if ( properties == null )
         {
-            new AddOnManagerException( "\"addon.properties\" for " + file.getName() + " has no \"main\" key" )
-                    .printStackTrace();
-            return null;
-        }
-        if ( !properties.containsKey( "name" ) )
+            return this.loadLibrary( file );
+        } else
         {
-            new AddOnManagerException( "\"addon.properties\" for " + file.getName() + " has no \"name\" key" )
-                    .printStackTrace();
-            return null;
+            if ( !properties.containsKey( "main" ) )
+            {
+                new AddOnManagerException( "\"addon.properties\" for " + file.getName() + " has no \"main\" key" )
+                        .printStackTrace();
+                return null;
+            }
+            if ( !properties.containsKey( "name" ) )
+            {
+                new AddOnManagerException( "\"addon.properties\" for " + file.getName() + " has no \"name\" key" )
+                        .printStackTrace();
+                return null;
+            }
+            @NonNull final String addOnName = properties.get( "name" ).toString();
+            if ( this.classLoaders.containsKey( addOnName ) )
+            {
+                throw new AddOnManagerException( "AddOn of name \"" + addOnName + "\" has already been loaded..." );
+            }
+            @NonNull final String main = properties.get( "main" ).toString();
+            if ( this.globalClassMap.containsKey( main ) )
+            {
+                throw new AddOnManagerException( "AddOn main class has already been loaded: " + main );
+            }
+            final AddOnClassLoader loader;
+            try
+            {
+                loader = new AddOnClassLoader( this, file, main, addOnName );
+            } catch ( final Exception e )
+            {
+                new AddOnManagerException( "Failed to load " + file.getName(), e )
+                        .printStackTrace();
+                return null;
+            }
+            this.classLoaders.put( addOnName, loader );
+            return loader;
         }
-        @NonNull final String addOnName = properties.get( "name" ).toString();
-        if ( this.classLoaders.containsKey( addOnName ) )
-        {
-            throw new AddOnManagerException( "AddOn of name \"" + addOnName + "\" has already been loaded..." );
-        }
-        @NonNull final String main = properties.get( "main" ).toString();
-        if ( this.globalClassMap.containsKey( main ) )
-        {
-            throw new AddOnManagerException( "AddOn main class has already been loaded: " + main );
-        }
+    }
+
+    private AddOnClassLoader loadLibrary(@NonNull final File file)
+    {
         final AddOnClassLoader loader;
         try
         {
-            loader = new AddOnClassLoader( this, file, main, addOnName );
+            loader = new AddOnClassLoader( this, file, file.toPath().getFileName().toString() );
         } catch ( final Exception e )
         {
             new AddOnManagerException( "Failed to load " + file.getName(), e )
                     .printStackTrace();
             return null;
         }
-        this.classLoaders.put( addOnName, loader );
+        this.classLoaders.put( loader.getName(), loader );
         return loader;
     }
 
